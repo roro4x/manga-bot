@@ -1,14 +1,10 @@
 package main
 
 import (
-	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,11 +12,12 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/jasonlvhit/gocron"
 	. "github.com/k4s/phantomgo"
+	"github.com/meinside/telegraph-go"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-var token = "YOUR_TOKEN"
-var chatID = "YOUR_CHAT_ID"
+var token = "TOKEN"
+var chatID = "CHAT_ID" // int
 
 var baseURL = "https://readmanga.live"
 var listURL = "https://readmanga.live/list?sortType=rate&offset="
@@ -32,22 +29,37 @@ type mangaTitle struct {
 	Link  string `json:"link"`
 }
 
+// Create Telegraph page with manga chapter
+func createTelegraphPage(html string, title string) string {
+	const verbose = true
+	telegraph.Verbose = verbose
+	var savedAccessToken string
+	var pageURL string
+
+	if client, err := telegraph.Create("telegraph-mangakaka", "Mangakaka", ""); err == nil {
+		savedAccessToken = client.AccessToken
+
+		// CreatePage
+		if page, err := client.CreatePageWithHTML(title, "Mangakaka", "", html, true); err == nil {
+			pageURL = page.URL
+			log.Printf("> CreatePage result: %#+v", page)
+			log.Printf("> Created page url: %s", page.URL)
+		} else {
+			log.Printf("* CreatePage error: %s", err)
+		}
+	} else {
+		log.Printf("* Create error: %s", err)
+	}
+	if savedAccessToken == "" {
+		log.Printf("* Couldn't save access token, exiting...")
+		return pageURL
+	}
+	return pageURL
+}
+
 // Send Manga Chapter to Telegram channel
 func sendMangaChapter(b *tb.Bot, r tb.Recipient, t string) {
 	b.Send(r, t)
-	files := getListFilesName()
-	var a tb.Album
-	for i := 0; i < len(files); i++ {
-		if len(a) == 9 || i == len(files)-1 {
-			a = append(a, &tb.Photo{File: tb.FromDisk("chapter/" + files[i])})
-			b.SendAlbum(r, a)
-			log.Println("Sent 10 or less chaters")
-			a = a[:0]
-			time.Sleep(1 * time.Minute)
-			continue
-		}
-		a = append(a, &tb.Photo{File: tb.FromDisk("chapter/" + files[i])})
-	}
 }
 
 // Base function that download random chapter of a random manga.
@@ -58,15 +70,26 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	GetChaptersList(baseURL + selectedManga)
 	chapterNumber := randomizer(len(chaptersList))
 	selectedChapter := chaptersList[chapterNumber]
+	c, f := CheckCountOfPages(baseURL, selectedChapter)
+	for c <= 10 {
+		log.Printf("Count of pages less than 10. Select other title.")
+		chaptersList = make(map[int]string)
+		mangaNumber = randomizer(len(mangaList))
+		selectedManga = mangaList[mangaNumber].Link
+		GetChaptersList(baseURL + selectedManga)
+		chapterNumber = randomizer(len(chaptersList))
+		selectedChapter = chaptersList[chapterNumber]
+		c, f = CheckCountOfPages(baseURL, selectedChapter)
+	}
 	log.Println(baseURL + selectedChapter + "#page=")
-	DownloadMangaChapter(baseURL, selectedChapter)
-	sendMangaChapter(b, r, mangaList[mangaNumber].Title)
+	html := MangaPageParser(baseURL, selectedChapter, c, f)
+	pageURL := createTelegraphPage(mangaList[mangaNumber].Title+html, mangaList[mangaNumber].Title)
+	sendMangaChapter(b, r, pageURL)
 }
 
 // GetMangaList - save all titles and links of a manga list.
 func GetMangaList() {
-	// TODO: remove number
-	lastPage := CheckLastPageOfMangaList() / 10
+	lastPage := CheckLastPageOfMangaList()
 	mangaList = make(map[int]mangaTitle)
 	log.Println("Parsing manga list started!")
 	offset := 0
@@ -115,19 +138,36 @@ func GetChaptersList(URL string) {
 	})
 }
 
-// DownloadMangaChapter - Download all chapter's pages.
-func DownloadMangaChapter(URL string, selectedChapter string) {
-	removeChaptersFolder()
-	count, pre := CheckCountOfPages(URL, selectedChapter)
-	log.Println("Starting download manga!")
+// MangaPageParser - Parse and return html page.
+func MangaPageParser(URL string, selectedChapter string, count int, pre string) string {
+	var html string
+	log.Println("Starting concatinate html string")
 	if pre == "#page=" {
 		resp := getPageWithJS(URL + selectedChapter)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
 		if ok {
-			DowloadMangaPage(mangaPageURL)
+			segments := strings.Split(mangaPageURL, "?")
+			path := segments[0]
+			var re = regexp.MustCompile(`\/\/.*?\.`)
+			path = re.ReplaceAllString(path, `//t7.`)
+			html = html + `<img src=` + path + `>`
 		}
+	}
+	if pre == "?mtr=1" {
+		resp := getPageWithJS(URL + selectedChapter)
+		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		checkError(err)
+		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
+		if ok {
+			segments := strings.Split(mangaPageURL, "?")
+			path := segments[0]
+			var re = regexp.MustCompile(`\/\/.*?\.`)
+			path = re.ReplaceAllString(path, `//t7.`)
+			html = html + `<img src=` + path + `>`
+		}
+		pre = pre + "#page="
 	}
 	for i := 0; i < count; i++ {
 		resp := getPageWithJS(URL + selectedChapter + pre + strconv.Itoa(i+1))
@@ -135,10 +175,15 @@ func DownloadMangaChapter(URL string, selectedChapter string) {
 		checkError(err)
 		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
 		if ok {
-			DowloadMangaPage(mangaPageURL)
+			segments := strings.Split(mangaPageURL, "?")
+			path := segments[0]
+			var re = regexp.MustCompile(`\/\/.*?\.`)
+			path = re.ReplaceAllString(path, `//t7.`)
+			html = html + `<img src=` + path + `>`
 		}
 	}
-	log.Println("Download finished!")
+	log.Println("Concatinate html string finished!")
+	return html
 }
 
 // CheckCountOfPages - Check count of pages.
@@ -149,8 +194,8 @@ func CheckCountOfPages(URL string, selectedChapter string) (c int, f string) {
 	checkError(err)
 	c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
 	if err != nil {
-		f = "?mtr="
-		resp := getPageWithJS(URL + selectedChapter + f + strconv.Itoa(1))
+		f = "?mtr=1"
+		resp := getPageWithJS(URL + selectedChapter + f)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		log.Println(URL + selectedChapter + "?mtr=" + strconv.Itoa(1))
@@ -158,41 +203,6 @@ func CheckCountOfPages(URL string, selectedChapter string) (c int, f string) {
 		checkError(err)
 	}
 	return
-}
-
-// DowloadMangaPage - Download one page.
-func DowloadMangaPage(src string) {
-
-	// Parse file name
-	fileURL, err := url.Parse(src)
-	checkError(err)
-	path := fileURL.Path
-	segments := strings.Split(path, "/")
-	fileName := segments[len(segments)-1]
-
-	// Create file with folder's path
-	p, err := os.Create(filepath.Join("chapter", filepath.Base(fileName)))
-	checkError(err)
-
-	// Get file from URL
-	filePage, err := httpClient().Get(src)
-	checkError(err)
-	defer filePage.Body.Close()
-
-	//Put file in directory
-	io.Copy(p, filePage.Body)
-	defer p.Close()
-}
-
-func httpClient() *http.Client {
-	client := http.Client{
-		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			r.URL.Opaque = r.URL.Path
-			return nil
-		},
-	}
-
-	return &client
 }
 
 func checkError(err error) {
@@ -231,25 +241,6 @@ func randomizer(i int) int {
 	return rand.Intn(i)
 }
 
-func removeChaptersFolder() {
-	os.RemoveAll("chapter/")
-	os.MkdirAll("chapter/", 0777)
-}
-
-func getListFilesName() map[int]string {
-	files, err := ioutil.ReadDir("chapter/")
-	if err != nil {
-		log.Fatal(err)
-	}
-	var fileNames = make(map[int]string)
-	i := 0
-	for _, f := range files {
-		fileNames[i] = f.Name()
-		i++
-	}
-	return fileNames
-}
-
 func main() {
 	GetMangaList()
 	b, err := tb.NewBot(tb.Settings{
@@ -260,7 +251,7 @@ func main() {
 		return
 	}
 	r := tb.Recipient(tb.ChatID(chatID))
-	gocron.Every(10).Minutes().Do(downloadRandomMangaChapter, b, r)
+	gocron.Every(5).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
 	<-gocron.Start()
 	b.Start()
 }
