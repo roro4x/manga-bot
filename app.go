@@ -17,7 +17,7 @@ import (
 )
 
 var token = "TOKEN"
-var chatID = "CHAT_ID" // int
+var chatID int // = int
 
 var baseURL = "https://readmanga.live"
 var listURL = "https://readmanga.live/list?sortType=rate&offset="
@@ -67,23 +67,32 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	chaptersList = make(map[int]string)
 	mangaNumber := randomizer(len(mangaList))
 	selectedManga := mangaList[mangaNumber].Link
-	GetChaptersList(baseURL + selectedManga)
-	chapterNumber := randomizer(len(chaptersList))
-	selectedChapter := chaptersList[chapterNumber]
-	c, f := CheckCountOfPages(baseURL, selectedChapter)
-	for c <= 10 {
-		log.Printf("Count of pages less than 10. Select other title.")
+	for ChapterListChecker(baseURL+selectedManga) != true {
 		chaptersList = make(map[int]string)
 		mangaNumber = randomizer(len(mangaList))
 		selectedManga = mangaList[mangaNumber].Link
+	}
+	GetChaptersList(baseURL + selectedManga)
+	chapterNumber := randomizer(len(chaptersList))
+	selectedChapter := chaptersList[chapterNumber]
+	c, f, err := GetCountOfPages(baseURL, selectedChapter)
+	for err != nil || c <= 10 {
+		chaptersList = make(map[int]string)
+		mangaNumber = randomizer(len(mangaList))
+		selectedManga = mangaList[mangaNumber].Link
+		for ChapterListChecker(baseURL+selectedManga) != true {
+			chaptersList = make(map[int]string)
+			mangaNumber = randomizer(len(mangaList))
+			selectedManga = mangaList[mangaNumber].Link
+		}
 		GetChaptersList(baseURL + selectedManga)
 		chapterNumber = randomizer(len(chaptersList))
 		selectedChapter = chaptersList[chapterNumber]
-		c, f = CheckCountOfPages(baseURL, selectedChapter)
+		c, f, err = GetCountOfPages(baseURL, selectedChapter)
 	}
-	log.Println(baseURL + selectedChapter + "#page=")
+	log.Println("> Selected manga: " + baseURL + selectedChapter + "#page=")
 	html := MangaPageParser(baseURL, selectedChapter, c, f)
-	pageURL := createTelegraphPage(mangaList[mangaNumber].Title+html, mangaList[mangaNumber].Title)
+	pageURL := createTelegraphPage(mangaList[mangaNumber].Title+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
 	sendMangaChapter(b, r, pageURL)
 }
 
@@ -91,13 +100,13 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 func GetMangaList() {
 	lastPage := CheckLastPageOfMangaList()
 	mangaList = make(map[int]mangaTitle)
-	log.Println("Parsing manga list started!")
+	log.Println("> Parsing manga list started!")
 	offset := 0
 	for i := 1; i <= lastPage; i++ {
 		MangaListParser(offset)
 		offset = offset + 70
 	}
-	log.Println("Parsing manga list finished!")
+	log.Println("> Parsing manga list finished!")
 }
 
 // CheckLastPageOfMangaList - Check last page of a manga list.
@@ -123,6 +132,25 @@ func MangaListParser(offset int) {
 	})
 }
 
+// ChapterListChecker - Check is need to buy manga or manga have chapters
+func ChapterListChecker(URL string) bool {
+	var isChapterList bool
+	var t string
+	doc := getPageWithoutJS(URL)
+	t = doc.Find("div.flex-row div.subject-meta > a").Text()
+	if t == "Купить том " {
+		isChapterList = false
+	} else {
+		t = doc.Find("div.subject-actions > a").Text()
+		if t != "Читать мангу с первой главы" {
+			isChapterList = false
+		} else {
+			isChapterList = true
+		}
+	}
+	return isChapterList
+}
+
 // GetChaptersList - Parse and get list of chapters.
 func GetChaptersList(URL string) {
 	doc := getPageWithoutJS(URL)
@@ -141,7 +169,7 @@ func GetChaptersList(URL string) {
 // MangaPageParser - Parse and return html page.
 func MangaPageParser(URL string, selectedChapter string, count int, pre string) string {
 	var html string
-	log.Println("Starting concatinate html string")
+	log.Println("> Starting concatinate html string")
 	if pre == "#page=" {
 		resp := getPageWithJS(URL + selectedChapter)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
@@ -182,12 +210,12 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 			html = html + `<img src=` + path + `>`
 		}
 	}
-	log.Println("Concatinate html string finished!")
+	log.Println("> Concatinate html string finished!")
 	return html
 }
 
-// CheckCountOfPages - Check count of pages.
-func CheckCountOfPages(URL string, selectedChapter string) (c int, f string) {
+// GetCountOfPages - Check count of pages.
+func GetCountOfPages(URL string, selectedChapter string) (c int, f string, err error) {
 	f = "#page="
 	resp := getPageWithJS(URL + selectedChapter + f + strconv.Itoa(1))
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
@@ -198,9 +226,8 @@ func CheckCountOfPages(URL string, selectedChapter string) (c int, f string) {
 		resp := getPageWithJS(URL + selectedChapter + f)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
-		log.Println(URL + selectedChapter + "?mtr=" + strconv.Itoa(1))
+		log.Println("> Mint manga new URL: " + URL + selectedChapter + "?mtr=" + strconv.Itoa(1))
 		c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
-		checkError(err)
 	}
 	return
 }
