@@ -6,7 +6,7 @@
 - need to download https://phantomjs.org/download.html and put in *phantomgo* dir
 
 ### TODO:
-- [X] need to download https://phantomjs.org/download.html and put in *phantomgo* dir
-- [X] create folder "chapter"
+- [X] Checker *if manga haven't chapters*
+- [X] Checker *if need to buy manga than select other manga*
 - [ ] Will add exception processing (mb need to use https://github.com/sethgrid/pester)
 - [ ] Will add manga description in message
