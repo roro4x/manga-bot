@@ -15,7 +15,7 @@
   - ```$ sudo apt-get install libfreetype6 libfreetype6-dev```
   - ```$ sudo apt-get install libfontconfig1 libfontconfig1-dev```
 - build app
-- ```$ ./prog &```
+- ```$ ./program 2>&1 | tee logs.txt &```
 - ```$ kill *pid*```
 > - Look at `phantomjsPath` variable in `phantom.go`
 >   - Make sure that your Phantomgo PATH is `/src/github.com/k4s/phantomgo/phantomjs/phantomjs`

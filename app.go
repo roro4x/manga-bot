@@ -19,8 +19,11 @@ import (
 var token = "TOKEN"
 var chatID int // = int
 
+var brower Phantomer
+
 var baseURL = "https://readmanga.live"
 var listURL = "https://readmanga.live/list?sortType=rate&offset="
+
 var mangaList map[int]mangaTitle
 var chaptersList map[int]string
 
@@ -76,7 +79,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	chapterNumber := randomizer(len(chaptersList))
 	selectedChapter := chaptersList[chapterNumber]
 	c, f, err := GetCountOfPages(baseURL, selectedChapter)
-	for err != nil || c <= 10 {
+	for err != nil || c <= 15 {
 		chaptersList = make(map[int]string)
 		mangaNumber = randomizer(len(mangaList))
 		selectedManga = mangaList[mangaNumber].Link
@@ -92,7 +95,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	}
 	log.Println("> Selected manga: " + baseURL + selectedChapter + "#page=")
 	html := MangaPageParser(baseURL, selectedChapter, c, f)
-	pageURL := createTelegraphPage(mangaList[mangaNumber].Title+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
+	pageURL := createTelegraphPage(baseURL+mangaList[mangaNumber].Link+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
 	sendMangaChapter(b, r, pageURL)
 }
 
@@ -103,6 +106,9 @@ func GetMangaList() {
 	log.Println("> Parsing manga list started!")
 	offset := 0
 	for i := 1; i <= lastPage; i++ {
+		if i%70 == 0 {
+			time.Sleep(2 * time.Minute)
+		}
 		MangaListParser(offset)
 		offset = offset + 70
 	}
@@ -234,6 +240,7 @@ func GetCountOfPages(URL string, selectedChapter string) (c int, f string, err e
 
 func checkError(err error) {
 	if err != nil {
+		log.Panic(err)
 		panic(err)
 	}
 }
@@ -245,7 +252,6 @@ func getPageWithJS(URL string) *http.Response {
 		Header:       http.Header{"Cookie": []string{"your cookie"}},
 		UsePhantomJS: true,
 	}
-	brower := NewPhantom()
 	resp, err := brower.Download(p)
 	checkError(err)
 	return resp
@@ -269,6 +275,7 @@ func randomizer(i int) int {
 }
 
 func main() {
+	brower = NewPhantom()
 	GetMangaList()
 	b, err := tb.NewBot(tb.Settings{
 		Token:  token,
@@ -278,7 +285,7 @@ func main() {
 		return
 	}
 	r := tb.Recipient(tb.ChatID(chatID))
-	gocron.Every(5).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
+	gocron.Every(30).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
 	<-gocron.Start()
 	b.Start()
 }
