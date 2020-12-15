@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,8 +12,8 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/jasonlvhit/gocron"
-	. "github.com/k4s/phantomgo"
 	"github.com/meinside/telegraph-go"
+	. "github.com/roro4x/phantomgo"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -95,7 +96,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	}
 	log.Println("> Selected manga: " + baseURL + selectedChapter + "#page=")
 	html := MangaPageParser(baseURL, selectedChapter, c, f)
-	pageURL := createTelegraphPage(baseURL+mangaList[mangaNumber].Link+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
+	pageURL := createTelegraphPage(`<a href="`+baseURL+mangaList[mangaNumber].Link+`">`+mangaList[mangaNumber].Title+`</a>`+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
 	sendMangaChapter(b, r, pageURL)
 }
 
@@ -177,7 +178,7 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 	var html string
 	log.Println("> Starting concatinate html string")
 	if pre == "#page=" {
-		resp := getPageWithJS(URL + selectedChapter)
+		resp, cmd := getPageWithJS(URL + selectedChapter)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
@@ -188,9 +189,10 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 			path = re.ReplaceAllString(path, `//t7.`)
 			html = html + `<img src=` + path + `>`
 		}
+		brower.Close(cmd)
 	}
 	if pre == "?mtr=1" {
-		resp := getPageWithJS(URL + selectedChapter)
+		resp, cmd := getPageWithJS(URL + selectedChapter)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
@@ -202,9 +204,10 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 			html = html + `<img src=` + path + `>`
 		}
 		pre = pre + "#page="
+		brower.Close(cmd)
 	}
 	for i := 0; i < count; i++ {
-		resp := getPageWithJS(URL + selectedChapter + pre + strconv.Itoa(i+1))
+		resp, cmd := getPageWithJS(URL + selectedChapter + pre + strconv.Itoa(i+1))
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
@@ -215,6 +218,8 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 			path = re.ReplaceAllString(path, `//t7.`)
 			html = html + `<img src=` + path + `>`
 		}
+		brower.Close(cmd)
+
 	}
 	log.Println("> Concatinate html string finished!")
 	return html
@@ -223,18 +228,20 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 // GetCountOfPages - Check count of pages.
 func GetCountOfPages(URL string, selectedChapter string) (c int, f string, err error) {
 	f = "#page="
-	resp := getPageWithJS(URL + selectedChapter + f + strconv.Itoa(1))
+	resp, cmd := getPageWithJS(URL + selectedChapter + f + strconv.Itoa(1))
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	checkError(err)
 	c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
 	if err != nil {
+		brower.Close(cmd)
 		f = "?mtr=1"
-		resp := getPageWithJS(URL + selectedChapter + f)
+		resp, cmd = getPageWithJS(URL + selectedChapter + f)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		log.Println("> Mint manga new URL: " + URL + selectedChapter + "?mtr=" + strconv.Itoa(1))
 		c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
 	}
+	brower.Close(cmd)
 	return
 }
 
@@ -245,16 +252,16 @@ func checkError(err error) {
 	}
 }
 
-func getPageWithJS(URL string) *http.Response {
+func getPageWithJS(URL string) (*http.Response, *exec.Cmd) {
 	p := &Param{
 		Method:       "GET",
 		Url:          URL,
 		Header:       http.Header{"Cookie": []string{"your cookie"}},
 		UsePhantomJS: true,
 	}
-	resp, err := brower.Download(p)
+	resp, err, cmd := brower.Download(p)
 	checkError(err)
-	return resp
+	return resp, cmd
 }
 
 func getPageWithoutJS(URL string) *goquery.Document {
