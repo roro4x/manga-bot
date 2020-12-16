@@ -11,6 +11,8 @@ github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5y
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/jasonlvhit/gocron v0.0.1 h1:qTt5qF3b3srDjeOIR4Le1LfeyvoYzJlYpqvG7tJX5YU=
 github.com/jasonlvhit/gocron v0.0.1/go.mod h1:k9a3TV8VcU73XZxfVHCHWMWF9SOqgoku0/QlY2yvlA4=
+github.com/k4s/phantomgo v0.0.0-20161104020322-11963773aa04 h1:tA/Xc0VnJtHIdxAML0WraKG+ErOYVgJ6oDcuxOloZOM=
+github.com/k4s/phantomgo v0.0.0-20161104020322-11963773aa04/go.mod h1:YWxksSger0gUVO0tKEY/mVkyBTPoKAf4KX/S8Vt7ndc=
 github.com/meinside/telegraph-go v0.0.3 h1:qBmKQOgWHaJEMdHMN38BXyu3uLI3TJZ3C0PxhIX7pwk=
 github.com/meinside/telegraph-go v0.0.3/go.mod h1:GsHWh9J4SKHOykdKDhXjvCWejsAotN3fhV0z0X/1iMA=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
@@ -19,8 +21,6 @@ github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1Cpa
 github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/roro4x/phantomgo v0.0.0-20201214204329-60ace2594b42 h1:p1UYmvyzXfurObQRxXNAOF2HAPTq7c8dhmA/CxzCe4I=
-github.com/roro4x/phantomgo v0.0.0-20201214204329-60ace2594b42/go.mod h1:v/HndY1fgOBVpgI57J1pHe4xT2O2UYOuxk3TjAxnMHs=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
