@@ -95,7 +95,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	}
 	log.Println("> Selected manga: " + baseURL + selectedChapter + "#page=")
 	html := MangaPageParser(baseURL, selectedChapter, c, f)
-	pageURL := createTelegraphPage(baseURL+mangaList[mangaNumber].Link+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
+	pageURL := createTelegraphPage(`<a href="`+baseURL+mangaList[mangaNumber].Link+`">`+mangaList[mangaNumber].Title+`</a>`+html+`<a href="https://readmanga.live">Читать мангу Online</a>`, mangaList[mangaNumber].Title)
 	sendMangaChapter(b, r, pageURL)
 }
 
