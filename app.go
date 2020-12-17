@@ -17,7 +17,7 @@ import (
 )
 
 var token = "TOKEN"
-var chatID int // = int
+var chatID = "CHAT_ID" // = int
 
 var brower Phantomer
 
@@ -285,7 +285,7 @@ func main() {
 		return
 	}
 	r := tb.Recipient(tb.ChatID(chatID))
-	gocron.Every(30).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
+	gocron.Every(60).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
 	<-gocron.Start()
 	b.Start()
 }

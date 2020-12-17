@@ -15,15 +15,14 @@
   - ```$ sudo apt-get install libfreetype6 libfreetype6-dev```
   - ```$ sudo apt-get install libfontconfig1 libfontconfig1-dev```
 - build app
-- ```$ ./program 2>&1 | tee logs.txt &```
-- ```$ kill *pid*```
+- edit and add ```bot.sh``` to crontab
 > - Look at `phantomjsPath` variable in `phantom.go`
->   - Make sure that your Phantomgo PATH is `/src/github.com/k4s/phantomgo/phantomjs/phantomjs`
+>   - Make sure that your Phantomgo PATH is `GOPATH + /src/github.com/k4s/phantomgo/phantomjs/phantomjs`
+> - About ```bot.sh```
+>   - This is needed to remove the application from processes because `phantomjs` does not close correctly
 
 
 ### TODO:
 - [X] Checker *if manga haven't chapters*
 - [X] Checker *if need to buy manga than select other manga*
-- [ ] Will add exception processing (mb need to use https://github.com/sethgrid/pester)
-- [ ] Will add manga description in message
-- [ ] Dockerfile
+- [X] Will add manga description in message (added URL to manga page)
