@@ -22,4 +22,4 @@
 - [X] Checker *if manga haven't chapters*
 - [X] Checker *if need to buy manga than select other manga*
 - [X] Will add manga description in message (added URL to manga page)
-- [] Make all xpath strings like vars
+- [ ] Make all xpath strings like vars
