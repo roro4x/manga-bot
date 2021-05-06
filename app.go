@@ -15,18 +15,27 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-var token = "TOKEN"
+// Set Bot's token
+var token = "1446203752:AAGgM6ff0bf2pFR5wDuBRS0iZ4n33In2fhw"
 
 // Set ChatID int
-var chatID int
+var chatID = -1001299915089
 
 var brower Phantomer
+var mangaList map[int]mangaTitle
+var chaptersList map[int]string
 
 var baseURL = "https://readmanga.live"
 var listURL = "https://readmanga.live/list?sortType=rate&offset="
 
-var mangaList map[int]mangaTitle
-var chaptersList map[int]string
+// Xpath variables
+var lastPagePath = ".pagination a.step"
+var mangaOnPagePath = ".tiles .tile .desc h3 a"
+var listOfChaptersPath = ".table.table-hover tbody a"
+var buyButtonPath = "div.flex-row div.subject-meta > a"
+var noChapterForReadPath = "div.subject-actions > a"
+var mangaPagePicPath = "#fotocontext img"
+var countPagesElemPath = ".top-block .pages-count"
 
 type mangaTitle struct {
 	Title string `json:"title"`
@@ -66,8 +75,9 @@ func sendMangaChapter(b *tb.Bot, r tb.Recipient, t string) {
 	b.Send(r, t)
 }
 
-// Base function that download random chapter of a random manga.
+// Base function that download random chapter of a random manga
 func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
+	log.Printf("> Selecting manga ...")
 	chaptersList = make(map[int]string)
 	mangaNumber := randomizer(len(mangaList))
 	selectedManga := mangaList[mangaNumber].Link
@@ -81,6 +91,10 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	selectedChapter := chaptersList[chapterNumber]
 	c, f, err := GetCountOfPages(baseURL, selectedChapter)
 	for err != nil || c <= 15 {
+		if err == nil {
+			log.Printf("> Selected manga with error: %s", err)
+		}
+		log.Printf("> Selected manga pages count: %s", strconv.Itoa(c))
 		chaptersList = make(map[int]string)
 		mangaNumber = randomizer(len(mangaList))
 		selectedManga = mangaList[mangaNumber].Link
@@ -100,7 +114,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	sendMangaChapter(b, r, pageURL)
 }
 
-// GetMangaList - save all titles and links of a manga list.
+// GetMangaList - save all titles and links of a manga list
 func GetMangaList() {
 	lastPage := CheckLastPageOfMangaList()
 	pageNum := randomizer(lastPage)
@@ -110,18 +124,18 @@ func GetMangaList() {
 	log.Println("> Parsing manga list finished!")
 }
 
-// CheckLastPageOfMangaList - Check last page of a manga list.
+// CheckLastPageOfMangaList - Check last page of a manga list
 func CheckLastPageOfMangaList() (index int) {
 	doc := getPageWithoutJS(listURL + strconv.Itoa(0))
-	index, err := strconv.Atoi(doc.Find(".pagination a.step").Last().Text())
+	index, err := strconv.Atoi(doc.Find(lastPagePath).Last().Text())
 	checkError(err)
 	return
 }
 
-// MangaListParser - Parse manga titles list.
+// MangaListParser - Parse manga titles list
 func MangaListParser(offset int) {
 	doc := getPageWithoutJS(listURL + strconv.Itoa(offset))
-	doc.Find(".tiles .tile .desc h3 a").Each(func(i int, s *goquery.Selection) {
+	doc.Find(mangaOnPagePath).Each(func(i int, s *goquery.Selection) {
 		title := s.Text()
 		link, ok := s.Attr("href")
 		if ok {
@@ -138,11 +152,11 @@ func ChapterListChecker(URL string) bool {
 	var isChapterList bool
 	var t string
 	doc := getPageWithoutJS(URL)
-	t = doc.Find("div.flex-row div.subject-meta > a").Text()
+	t = doc.Find(buyButtonPath).Text()
 	if t == "Купить том " {
 		isChapterList = false
 	} else {
-		t = doc.Find("div.subject-actions > a").Text()
+		t = doc.Find(noChapterForReadPath).Text()
 		if t != "Читать мангу с первой главы" {
 			isChapterList = false
 		} else {
@@ -152,10 +166,10 @@ func ChapterListChecker(URL string) bool {
 	return isChapterList
 }
 
-// GetChaptersList - Parse and get list of chapters.
+// GetChaptersList - Parse and get list of chapters
 func GetChaptersList(URL string) {
 	doc := getPageWithoutJS(URL)
-	doc.Find(".table.table-hover tbody a").Each(func(i int, s *goquery.Selection) {
+	doc.Find(listOfChaptersPath).Each(func(i int, s *goquery.Selection) {
 		link, ok := s.Attr("href")
 		if ok {
 			chaptersList[i] = link
@@ -167,14 +181,14 @@ func GetChaptersList(URL string) {
 	})
 }
 
-// MangaPageParser - Parse and return html page.
+// MangaPageParser - Parse and return html page
 func MangaPageParser(URL string, selectedChapter string, count int, pre string) string {
 	var html string
 	log.Println("> Starting concatinate html string")
 	resp := getPageWithJS(URL + selectedChapter)
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	checkError(err)
-	mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
+	mangaPageURL, ok := doc.Find(mangaPagePicPath).Attr("src")
 	if ok {
 		segments := strings.Split(mangaPageURL, "?")
 		path := segments[0]
@@ -189,7 +203,7 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 		resp := getPageWithJS(URL + selectedChapter + pre + strconv.Itoa(i+1))
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
-		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
+		mangaPageURL, ok := doc.Find(mangaPagePicPath).Attr("src")
 		if ok {
 			segments := strings.Split(mangaPageURL, "?")
 			path := segments[0]
@@ -202,20 +216,20 @@ func MangaPageParser(URL string, selectedChapter string, count int, pre string) 
 	return html
 }
 
-// GetCountOfPages - Check count of pages.
+// GetCountOfPages - Check count of pages
 func GetCountOfPages(URL string, selectedChapter string) (c int, f string, err error) {
 	f = "#page="
 	resp := getPageWithJS(URL + selectedChapter + f + strconv.Itoa(1))
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	checkError(err)
-	c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
+	c, err = strconv.Atoi(doc.Find(countPagesElemPath).Text())
 	if err != nil {
 		f = "?mtr=1"
 		resp := getPageWithJS(URL + selectedChapter + f)
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		checkError(err)
 		log.Println("> Mint manga new URL: " + URL + selectedChapter + "?mtr=" + strconv.Itoa(1))
-		c, err = strconv.Atoi(doc.Find(".top-block .pages-count").Text())
+		c, err = strconv.Atoi(doc.Find(countPagesElemPath).Text())
 	}
 	return
 }
@@ -244,7 +258,7 @@ func getPageWithoutJS(URL string) *goquery.Document {
 	checkError(err)
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+		log.Fatalf("* Status code error: %d %s", res.StatusCode, res.Status)
 	}
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	checkError(err)
