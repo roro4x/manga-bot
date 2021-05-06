@@ -16,10 +16,10 @@ import (
 )
 
 // Set Bot's token
-var token = "1446203752:AAGgM6ff0bf2pFR5wDuBRS0iZ4n33In2fhw"
+var token string
 
 // Set ChatID int
-var chatID = -1001299915089
+var chatID int
 
 var brower Phantomer
 var mangaList map[int]mangaTitle
