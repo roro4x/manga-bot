@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/jasonlvhit/gocron"
 	. "github.com/k4s/phantomgo"
 	"github.com/meinside/telegraph-go"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 var token = "TOKEN"
-var chatID = "CHAT_ID" // = int
+
+// Set ChatID int
+var chatID int
 
 var brower Phantomer
 
@@ -70,7 +71,7 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 	chaptersList = make(map[int]string)
 	mangaNumber := randomizer(len(mangaList))
 	selectedManga := mangaList[mangaNumber].Link
-	for ChapterListChecker(baseURL+selectedManga) != true {
+	for ChapterListChecker(baseURL+mangaList[mangaNumber].Link) != true {
 		chaptersList = make(map[int]string)
 		mangaNumber = randomizer(len(mangaList))
 		selectedManga = mangaList[mangaNumber].Link
@@ -102,16 +103,10 @@ func downloadRandomMangaChapter(b *tb.Bot, r tb.Recipient) {
 // GetMangaList - save all titles and links of a manga list.
 func GetMangaList() {
 	lastPage := CheckLastPageOfMangaList()
+	pageNum := randomizer(lastPage)
 	mangaList = make(map[int]mangaTitle)
 	log.Println("> Parsing manga list started!")
-	offset := 0
-	for i := 1; i <= lastPage; i++ {
-		if i%70 == 0 {
-			time.Sleep(2 * time.Minute)
-		}
-		MangaListParser(offset)
-		offset = offset + 70
-	}
+	MangaListParser(0 + (pageNum-1)*70)
 	log.Println("> Parsing manga list finished!")
 }
 
@@ -126,7 +121,7 @@ func CheckLastPageOfMangaList() (index int) {
 // MangaListParser - Parse manga titles list.
 func MangaListParser(offset int) {
 	doc := getPageWithoutJS(listURL + strconv.Itoa(offset))
-	doc.Find(".tiles.row .tile.col-sm-6 .desc h3 a").Each(func(i int, s *goquery.Selection) {
+	doc.Find(".tiles .tile .desc h3 a").Each(func(i int, s *goquery.Selection) {
 		title := s.Text()
 		link, ok := s.Attr("href")
 		if ok {
@@ -176,31 +171,18 @@ func GetChaptersList(URL string) {
 func MangaPageParser(URL string, selectedChapter string, count int, pre string) string {
 	var html string
 	log.Println("> Starting concatinate html string")
-	if pre == "#page=" {
-		resp := getPageWithJS(URL + selectedChapter)
-		doc, err := goquery.NewDocumentFromReader(resp.Body)
-		checkError(err)
-		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
-		if ok {
-			segments := strings.Split(mangaPageURL, "?")
-			path := segments[0]
-			var re = regexp.MustCompile(`\/\/.*?\.`)
-			path = re.ReplaceAllString(path, `//t7.`)
-			html = html + `<img src=` + path + `>`
-		}
+	resp := getPageWithJS(URL + selectedChapter)
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	checkError(err)
+	mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
+	if ok {
+		segments := strings.Split(mangaPageURL, "?")
+		path := segments[0]
+		var re = regexp.MustCompile(`\/\/.*?\.`)
+		path = re.ReplaceAllString(path, `//t7.`)
+		html = html + `<img src=` + path + `>`
 	}
 	if pre == "?mtr=1" {
-		resp := getPageWithJS(URL + selectedChapter)
-		doc, err := goquery.NewDocumentFromReader(resp.Body)
-		checkError(err)
-		mangaPageURL, ok := doc.Find("#fotocontext img").Attr("src")
-		if ok {
-			segments := strings.Split(mangaPageURL, "?")
-			path := segments[0]
-			var re = regexp.MustCompile(`\/\/.*?\.`)
-			path = re.ReplaceAllString(path, `//t7.`)
-			html = html + `<img src=` + path + `>`
-		}
 		pre = pre + "#page="
 	}
 	for i := 0; i < count; i++ {
@@ -277,7 +259,7 @@ func randomizer(i int) int {
 func main() {
 	brower = NewPhantom()
 	GetMangaList()
-	b, err := tb.NewBot(tb.Settings{
+	bot, err := tb.NewBot(tb.Settings{
 		Token:  token,
 		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
 	})
@@ -285,7 +267,5 @@ func main() {
 		return
 	}
 	r := tb.Recipient(tb.ChatID(chatID))
-	gocron.Every(60).Minutes().From(gocron.NextTick()).Do(downloadRandomMangaChapter, b, r)
-	<-gocron.Start()
-	b.Start()
+	downloadRandomMangaChapter(bot, r)
 }
